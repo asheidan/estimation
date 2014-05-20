@@ -1,0 +1,39 @@
+- A main task:
+    description:
+      A string (perhaps multiline) that describes this task. This text should
+      probably be formatted for readability in the file since the script will
+      enforce line length anyway.
+    estimate: 16d 5h
+    notes:
+      - Notes can also be really long or span
+        multiple lines. Do whatever feels best.
+      - Beware though that filtering the file through the script might reformat your
+        comments, descriptions and notes
+    comments:
+      - This is the first comment or question that perhaps need some explanation
+    tasks:
+      - A subtask of the main task
+      - Tasks don't have to be totally "fleshed out" to be considered tasks
+- Another task:
+  - Sub task that isn't really interesting
+  - Sub task that have several more subsub tasks:
+    - Subsubtask
+    - Another subsub task
+- Task with interesting subtasks:
+    estimate:
+    tasks:
+      - Task A:
+          description:
+            The stakes needs to be properly marinated, but not so much as to make
+            them runny.
+          estimate: 15m +(5m)
+          notes:
+            - This a really important task to the main stake-holder
+          comments:
+            - The newly invented marinade eliminates the risk of marinade running amook and
+              getting on the clothes
+      - Task B:
+          description:
+            This is something strange that we really dont now much about yet
+          estimate: 100d 30m ~(10m 5s)
+
