@@ -1,7 +1,10 @@
 #!/usr/bin/env ruby
 
 require 'yaml'
+require 'optparse'
 require 'pp'
+
+options = {}
 
 ###############################################################################
 # class Hash
@@ -12,7 +15,7 @@ require 'pp'
 # 	end
 # end
 
-class Estimate
+class EstimationReport
 	def initialize(data)
 		parse_data(data)
 	end
@@ -51,9 +54,11 @@ class Task
 		if @data.length > 0
 			structure = @data.clone()
 			structure["tasks"] = @sub_tasks if @sub_tasks.length > 0
+
 			if structure.has_key?("estimate")
-				structure["estimate"] = EstimatedTime.new(estimate)
+				structure["estimate"] = estimate
 			end
+
 			coder.map = {@name => structure}
 		elsif @sub_tasks.length > 0
 			coder.map = {@name => @sub_tasks}
@@ -80,9 +85,9 @@ class Task
 	def estimate
 		estimates = @sub_tasks.collect{ |t| t.estimate }.compact
 		if estimates.length > 0
-			return estimates.inject{ |sum,x| sum + x }
+			return estimates.reduce(Estimate.new, :+) #{ |sum,x| sum + x }
 		elsif @data.has_key?("estimate")
-			return @data["estimate"].time
+			return @data["estimate"]
 		else
 			return nil
 		end
@@ -97,7 +102,7 @@ class Task
 			end
 
 			if data.has_key?("estimate")
-				data["estimate"] = EstimatedTime.new(data["estimate"])
+				data["estimate"] = Estimate.new(data["estimate"])
 			end
 
 			@data = data
@@ -109,9 +114,6 @@ class Task
 end
 
 class Duration
-end
-
-class EstimatedTime
 	UNIT_LENGTHS = {
 		"d" => 3600 * 8,
 		"h" => 3600,
@@ -119,45 +121,128 @@ class EstimatedTime
 		"s" => 1
 	}
 
-	def initialize(time)
-		@time = 0
-		if time.is_a?(String)
-			@time = time.split(%r{\s+}).collect do |token|
+	def initialize(duration=nil)
+		@duration = 0
+		if duration.is_a?(String)
+			@duration = duration.split(%r{\s+}).collect do |token|
 				unit = token[-1]
-				next token[0..-2].to_i * EstimatedTime::UNIT_LENGTHS.fetch(unit, 0)
-			end.inject{ |sum,x| sum + x }
-		elsif time.is_a?(Fixnum)
-			@time = time
+				next token[0..-2].to_i * Duration::UNIT_LENGTHS.fetch(unit, 0)
+			end.inject{|sum,x| sum + x}
+		elsif duration.is_a?(Fixnum)
+			@duration = duration
 		end
 	end
 
-	def to_structure
-		time = @time
-		EstimatedTime::UNIT_LENGTHS.to_a.collect do |key,val|
-			count = time / val
-			time %= val
-			next [count,key].join() if count > 0
+	def to_i
+		return @duration
+	end
+
+	def to_s
+		duration = @duration
+		return Duration::UNIT_LENGTHS.to_a.collect do |unit,length|
+			count = duration / length
+			duration %= length
+
+			next [count,unit].join() if count > 0
 		end.compact.join(" ")
+	end
+
+	def +(other)
+		Duration.new(@duration + other.to_i)
 	end
 
 	def encode_with(coder)
 		coder.tag = nil
-		coder.scalar = to_structure
+		coder.scalar = to_s
+	end
+end
+
+class Estimate
+	attr_accessor :duration, :over, :under, :fudge
+
+	PARSER = /(?<duration>[^-+~]+)(?:\s*(?:(?:~\((?<fudge>[^\)]*)\))|(?:-\((?<under>[^\)]*)\))|(?:\+\((?<over>[^\)]*)\))))*/
+
+	def initialize(string=nil)
+		match = Estimate::PARSER.match(string)
+		
+		if match
+			@duration = Duration.new(match[:duration]) if match[:duration]
+			@over = Duration.new(match[:over]) if match[:over]
+			@under = Duration.new(match[:under]) if match[:under]
+			@fudge = Duration.new(match[:fudge]) if match[:fudge]
+		else
+			@duration = Duration.new
+			@over = Duration.new
+			@under = Duration.new
+			@fudge = Duration.new
+		end
 	end
 
-	def time
-		@time
+	def encode_with(coder)
+		coder.tag = nil
+		coder.scalar = to_s
+	end
+
+	def to_s
+		result = [@duration.to_s]
+		result << "~(#{@fudge})" if @fudge.to_i > 0
+		result << "+(#{@over})" if @over.to_i > 0
+		result << "-(#{@under})" if @under.to_i > 0
+
+		result.join(" ")
+	end
+
+	def to_i
+		@duration.to_i
+	end
+
+	def +(other)
+		result = Estimate.new
+
+		result.duration = self.duration + other.duration
+		result.over = self.over + other.over
+		result.under = self.under + other.under
+		result.fudge = self.fudge + other.fudge
+
+		return result
 	end
 end
 
 ###############################################################################
+def parse_options
+	options = {}
+	OptionParser.new do |opts|
+		opts.banner = "Usage #{ARGV[0]} [options] < datafile.yaml"
 
-data = YAML.load_stream(STDIN.read())[0]
+		options[:verbose] = false
+		opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
+			options[:verbose] = v
+		end
+	end.parse!
 
-#PP.pp(data)
-#puts("-"*80)
+	return options
+end
+	
+def main(options)
+	data = YAML.load_stream(STDIN.read())[0]
 
-estimate = Estimate.new(data)
-#PP.pp(estimate.to_structure)
-#puts("-"*80)
-puts(estimate.to_yaml())
+	PP.pp(data) if options[:verbose]
+	#puts("-"*80)
+
+	estimate = EstimationReport.new(data)
+	#PP.pp(estimate.to_structure) if options[:verbose]
+	#puts("-"*80)
+	puts(estimate.to_yaml())
+end
+
+###############################################################################
+
+if __FILE__ == $0
+	options = parse_options
+	if options[:test]
+		run_tests
+		exit
+	else
+		main options
+	end
+end
