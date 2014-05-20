@@ -7,13 +7,6 @@ require 'pp'
 options = {}
 
 ###############################################################################
-# class Hash
-# 	def encode_with(coder, *args)
-# 		coder.tag = nil
-# 		coder.implicit = true
-# 		coder.map = self
-# 	end
-# end
 
 class EstimationReport
 	def initialize(data)
@@ -50,7 +43,6 @@ class Task
 
 	def encode_with(coder)
 		coder.tag = nil
-		#sub_task_list = @sub_tasks.map { |t| t.to_structure } if @sub_tasks.length > 0
 		if @data.length > 0
 			structure = @data.clone()
 			structure["tasks"] = @sub_tasks if @sub_tasks.length > 0
@@ -85,7 +77,7 @@ class Task
 	def estimate
 		estimates = @sub_tasks.collect{ |t| t.estimate }.compact
 		if estimates.length > 0
-			return estimates.reduce(Estimate.new, :+) #{ |sum,x| sum + x }
+			return estimates.reduce(Estimate.new, :+)
 		elsif @data.has_key?("estimate")
 			return @data["estimate"]
 		else
@@ -227,11 +219,8 @@ def main(options)
 	data = YAML.load_stream(STDIN.read())[0]
 
 	PP.pp(data) if options[:verbose]
-	#puts("-"*80)
 
 	estimate = EstimationReport.new(data)
-	#PP.pp(estimate.to_structure) if options[:verbose]
-	#puts("-"*80)
 	puts(estimate.to_yaml())
 end
 
