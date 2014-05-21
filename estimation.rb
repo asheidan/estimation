@@ -107,6 +107,7 @@ end
 
 class Duration
 	UNIT_LENGTHS = {
+		"w" => 3600 * 8 * 5,
 		"d" => 3600 * 8,
 		"h" => 3600,
 		"m" => 60,
